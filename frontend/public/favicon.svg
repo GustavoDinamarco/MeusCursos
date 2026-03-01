@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Background rounded square -->
+  <rect width="32" height="32" rx="7" fill="#221a10"/>
+  <!-- Outer ring accent -->
+  <rect x="1" y="1" width="30" height="30" rx="6.5" stroke="#F79E07" stroke-width="1" stroke-opacity="0.4"/>
+  <!-- Play triangle -->
+  <path d="M12 9.5 L24 16 L12 22.5 Z" fill="#F79E07"/>
+</svg>
