@@ -1,0 +1,173 @@
+# =================================================================
+# docker-compose.yml
+# Infraestrutura completa: PostgreSQL + MinIO + Backend + Frontend
+# =================================================================
+#
+# Uso:
+#   docker compose up -d              → sobe todos os serviços em background
+#   docker compose up -d --build      → rebuild + sobe
+#   docker compose down -v            → remove containers E volumes (reset total)
+#   docker compose logs -f backend    → acompanha logs do backend
+#   docker compose logs -f frontend   → acompanha logs do frontend
+#
+# Variáveis de ambiente: arquivo .env na raiz do projeto (vide .env.example)
+# =================================================================
+
+services:
+
+  # ---------------------------------------------------------------
+  # PostgreSQL 16
+  # ---------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: coursedb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Garante que o PG escuta em todas as interfaces dentro do container
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Exposto apenas para ferramentas locais (pgAdmin, DBeaver, etc.)
+      # Em produção, remova este mapeamento.
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      # pg_isready verifica se o servidor está pronto para aceitar conexões
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+  # ---------------------------------------------------------------
+  # MinIO — Object Storage compatível com S3
+  # Porta 9000: API S3 (usada pelo backend via Boto3)
+  # Porta 9001: Console Web (acesse em http://localhost:9001)
+  # ---------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: course-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      # Endpoint nativo do MinIO para liveness probe
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - app-network
+
+  # ---------------------------------------------------------------
+  # MinIO Init — Cria o bucket inicial usando o MinIO Client (mc)
+  # Roda uma única vez e encerra (restart: no).
+  # Aguarda o MinIO estar saudável antes de executar.
+  # ---------------------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: course-minio-init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-course-videos}
+    entrypoint: >
+      /bin/sh -c "
+        echo '>>> Configurando alias para o MinIO local...' &&
+        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+        echo '>>> Criando bucket se não existir...' &&
+        mc mb --ignore-existing local/$${MINIO_BUCKET_NAME} &&
+        echo ">>> Bucket $${MINIO_BUCKET_NAME} pronto." &&
+        exit 0
+      "
+    networks:
+      - app-network
+
+  # ---------------------------------------------------------------
+  # Backend — FastAPI + Uvicorn
+  # ---------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    container_name: course-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-course-videos}
+      SECRET_KEY: ${SECRET_KEY}
+      NOTION_API_KEY: ${NOTION_API_KEY:-}
+      NOTION_DATABASE_ID: ${NOTION_DATABASE_ID:-}
+      IMPORTS_PATH: /imports
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - ${IMPORTS_HOST_PATH:-./imports}:/imports:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+  # ---------------------------------------------------------------
+  # Frontend — Vite + React
+  # ---------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:${BACKEND_PORT:-8000}
+    container_name: course-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+
+# =================================================================
+# Volumes nomeados — dados persistem entre reinicializações
+# =================================================================
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+
+# =================================================================
+# Rede interna — serviços se comunicam pelo nome do container
+# =================================================================
+networks:
+  app-network:
+    driver: bridge

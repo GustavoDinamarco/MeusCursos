@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 34 36% 10%;
+    --foreground: 40 20% 92%;
+
+    --card: 34 30% 13%;
+    --card-foreground: 40 20% 92%;
+
+    --popover: 34 28% 15%;
+    --popover-foreground: 40 20% 92%;
+
+    --primary: 38 94% 50%;
+    --primary-foreground: 34 36% 10%;
+
+    --secondary: 34 25% 16%;
+    --secondary-foreground: 40 15% 85%;
+
+    --muted: 34 20% 14%;
+    --muted-foreground: 34 15% 55%;
+
+    --accent: 38 94% 50%;
+    --accent-foreground: 34 36% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 34 20% 18%;
+    --input: 34 20% 18%;
+    --ring: 38 94% 50%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 34 30% 13%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 38 94% 50%;
+    --sidebar-primary-foreground: 34 36% 10%;
+    --sidebar-accent: 34 25% 16%;
+    --sidebar-accent-foreground: 40 15% 85%;
+    --sidebar-border: 34 20% 18%;
+    --sidebar-ring: 38 94% 50%;
+
+    --gradient-hero: linear-gradient(135deg, hsl(38, 94%, 50%), hsl(45, 100%, 60%));
+    --gradient-card: linear-gradient(145deg, hsl(34, 30%, 13%), hsl(34, 30%, 10%));
+    --shadow-glow: 0 0 40px -10px hsl(38 94% 50% / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-hero);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+
+  .glow-shadow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glass-header {
+    background: rgba(34, 28, 16, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(245, 159, 10, 0.05);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(245, 159, 10, 0.3);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 159, 10, 0.5);
+}
